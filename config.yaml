@@ -1,0 +1,9 @@
+port: "8000"
+environment: "development"
+read_timeout_seconds: 5
+write_timeout_seconds: 10
+idle_timeout_seconds: 120
+shutdown_timeout_seconds: 5
+log_level: "info"
+rate_limit_rps: 5
+rate_limit_burst: 10
