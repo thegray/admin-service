@@ -35,7 +35,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unable to construct logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer log.Sync()
+	defer func() {
+		_ = log.Sync()
+	}()
 
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
