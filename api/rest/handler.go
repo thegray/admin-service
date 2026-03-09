@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"admin-service/internal/domain/example"
+	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/gin-gonic/gin"
@@ -13,17 +14,20 @@ import (
 
 type Handler struct {
 	exampleSvc  *example.Service
+	userSvc     *users.Service
 	log         *zap.Logger
 	rateLimiter gin.HandlerFunc
 }
 
 func NewHandler(
 	exampleSvc *example.Service,
+	userSvc *users.Service,
 	logger *zap.Logger,
 	rateLimiter gin.HandlerFunc,
 ) *Handler {
 	return &Handler{
 		exampleSvc:  exampleSvc,
+		userSvc:     userSvc,
 		log:         logger.Named("admin-api"),
 		rateLimiter: rateLimiter,
 	}

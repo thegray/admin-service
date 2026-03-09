@@ -7,3 +7,9 @@ shutdown_timeout_seconds: 5
 log_level: "info"
 rate_limit_rps: 5
 rate_limit_burst: 10
+db_host: "localhost"
+db_port: 5432
+db_user: "postgres"
+db_password: "postgres"
+db_name: "admin"
+db_sslmode: "disable"
