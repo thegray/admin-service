@@ -19,20 +19,33 @@ import (
 const (
 	defaultConfigFile = "config.yaml"
 	defaultEnv        = "development"
+	defaultDBHost     = "localhost"
+	defaultDBPort     = 5432
+	defaultDBUser     = "postgres"
+	defaultDBPassword = "postgres"
+	defaultDBName     = "admin"
+	defaultDBSSLMode  = "disable"
 )
 
 type Config struct {
-	Port            string
-	Environment     string
-	LogLevel        string
-	TokenSecret     string
-	RateLimitRPS    float64
-	RateLimitBurst  int
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
-	ShutdownTimeout time.Duration
-	UseSecretMgr    bool
+	Port             string
+	Environment      string
+	LogLevel         string
+	TokenSecret      string
+	RateLimitRPS     float64
+	RateLimitBurst   int
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	IdleTimeout      time.Duration
+	ShutdownTimeout  time.Duration
+	UseSecretMgr     bool
+	DatabaseHost     string
+	DatabasePort     int
+	DatabaseUser     string
+	DatabasePassword string
+	DatabaseName     string
+	DatabaseSSLMode  string
+	DatabaseURL      string
 }
 
 type fileConfig struct {
@@ -45,6 +58,13 @@ type fileConfig struct {
 	WriteTimeoutSecs *int     `yaml:"write_timeout_seconds"`
 	IdleTimeoutSecs  *int     `yaml:"idle_timeout_seconds"`
 	ShutdownSeconds  *int     `yaml:"shutdown_timeout_seconds"`
+	DatabaseHost     string   `yaml:"db_host"`
+	DatabasePort     *int     `yaml:"db_port"`
+	DatabaseUser     string   `yaml:"db_user"`
+	DatabasePassword string   `yaml:"db_password"`
+	DatabaseName     string   `yaml:"db_name"`
+	DatabaseSSLMode  string   `yaml:"db_sslmode"`
+	DatabaseURL      string   `yaml:"database_url"`
 }
 
 type secretKey string
@@ -144,6 +164,14 @@ func Load(ctx context.Context) (Config, error) {
 		ShutdownTimeout: resolveConfigDuration(os.Getenv("SHUTDOWN_TIMEOUT_SECONDS"), fileCfg.ShutdownSeconds, 5),
 		UseSecretMgr:    closer != nil,
 	}
+
+	cfg.DatabaseHost = resolveConfigValString(os.Getenv("DB_HOST"), fileCfg.DatabaseHost, defaultDBHost)
+	cfg.DatabasePort = resolveConfigValInt(os.Getenv("DB_PORT"), fileCfg.DatabasePort, defaultDBPort)
+	cfg.DatabaseUser = resolveConfigValString(os.Getenv("DB_USER"), fileCfg.DatabaseUser, defaultDBUser)
+	cfg.DatabasePassword = resolveConfigValString(os.Getenv("DB_PASSWORD"), fileCfg.DatabasePassword, defaultDBPassword)
+	cfg.DatabaseName = resolveConfigValString(os.Getenv("DB_NAME"), fileCfg.DatabaseName, defaultDBName)
+	cfg.DatabaseSSLMode = resolveConfigValString(os.Getenv("DB_SSLMODE"), fileCfg.DatabaseSSLMode, defaultDBSSLMode)
+	cfg.DatabaseURL = resolveConfigValString(os.Getenv("DATABASE_URL"), fileCfg.DatabaseURL, "")
 
 	return cfg, nil
 }
