@@ -32,4 +32,5 @@ var (
 	ErrNotFound       = NewServiceError("not_found", "resource not found", http.StatusNotFound)
 	ErrInternal       = NewServiceError("internal_server_error", "internal server error", http.StatusInternalServerError)
 	ErrInvalidPayload = NewServiceError("invalid_payload", "invalid payload", http.StatusBadRequest)
+	ErrUnauthorized   = NewServiceError("unauthorized", "authentication failed", http.StatusUnauthorized)
 )
