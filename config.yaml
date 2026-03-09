@@ -13,3 +13,9 @@ db_user: "postgres"
 db_password: "postgres"
 db_name: "admin"
 db_sslmode: "disable"
+redis_addr: "localhost:6379"
+redis_password: ""
+redis_db: 0
+access_token_ttl_seconds: 900
+refresh_token_ttl_seconds: 259200
+user_cache_ttl_seconds: 300
