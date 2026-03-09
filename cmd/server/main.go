@@ -13,9 +13,12 @@ import (
 	"admin-service/api/rest"
 	"admin-service/internal/domain/example"
 	exampleRepo "admin-service/internal/domain/example/repository"
+	"admin-service/internal/domain/users"
+	usersRepo "admin-service/internal/domain/users/repository"
 	"admin-service/pkg/config"
 	"admin-service/pkg/logger"
 	"admin-service/pkg/middleware"
+	"admin-service/pkg/postgres"
 	"admin-service/pkg/prometheus"
 	serverpkg "admin-service/pkg/server"
 )
@@ -48,10 +51,26 @@ func main() {
 	router.Use(metrics.Middleware())
 	router.GET("/metrics", metrics.Handler())
 
-	repo := exampleRepo.NewInMemoryRepository(log)
-	service := example.NewService(repo, log)
+	db, err := postgres.Connect(context.Background(), cfg)
+	if err != nil {
+		log.Fatal("unable to connect to postgres", zap.Error(err))
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Warn("unable to access sql.DB for closing", zap.Error(err))
+	} else {
+		defer func() {
+			_ = sqlDB.Close()
+		}()
+	}
+
+	userRepository := usersRepo.NewPostgresRepository(db, log)
+	userService := users.NewService(userRepository, log)
+
+	exampleRepository := exampleRepo.NewInMemoryRepository(log)
+	service := example.NewService(exampleRepository, log)
 	limiter := middleware.RateLimitMiddleware(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	handler := rest.NewHandler(service, log, limiter)
+	handler := rest.NewHandler(service, userService, log, limiter)
 	handler.RegisterRoutes(router)
 
 	server := &http.Server{
