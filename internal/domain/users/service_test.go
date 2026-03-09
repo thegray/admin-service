@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"admin-service/internal/domain"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/google/uuid"
@@ -20,9 +21,9 @@ func TestServiceCreateHashesPassword(t *testing.T) {
 		IsActive: true,
 	}
 
-	var captured *User
+	var captured *domain.User
 	repo := &mockRepo{
-		createFn: func(ctx context.Context, user *User) error {
+		createFn: func(ctx context.Context, user *domain.User) error {
 			captured = user
 			return nil
 		},
@@ -47,7 +48,7 @@ func TestServiceCreateInvalidPayload(t *testing.T) {
 
 func TestServiceUpdateNotFound(t *testing.T) {
 	repo := &mockRepo{
-		getFn: func(ctx context.Context, id uuid.UUID) (*User, error) {
+		getFn: func(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 			return nil, nil
 		},
 	}
@@ -72,10 +73,10 @@ func TestServiceDeleteDeletedMissing(t *testing.T) {
 func TestServiceListDefaults(t *testing.T) {
 	var seenLimit, seenOffset int
 	repo := &mockRepo{
-		listFn: func(ctx context.Context, limit, offset int) ([]*User, error) {
+		listFn: func(ctx context.Context, limit, offset int) ([]*domain.User, error) {
 			seenLimit = limit
 			seenOffset = offset
-			return []*User{{Email: "a@example.com"}}, nil
+			return []*domain.User{{Email: "a@example.com"}}, nil
 		},
 	}
 
@@ -88,35 +89,39 @@ func TestServiceListDefaults(t *testing.T) {
 }
 
 type mockRepo struct {
-	getFn        func(ctx context.Context, id uuid.UUID) (*User, error)
-	listFn       func(ctx context.Context, limit, offset int) ([]*User, error)
-	createFn     func(ctx context.Context, user *User) error
-	updateFn     func(ctx context.Context, user *User) (bool, error)
-	softDeleteFn func(ctx context.Context, id uuid.UUID) (bool, error)
+	getFn                   func(ctx context.Context, id uuid.UUID) (*domain.User, error)
+	getByEmailFn            func(ctx context.Context, email string) (*domain.User, error)
+	listFn                  func(ctx context.Context, limit, offset int) ([]*domain.User, error)
+	createFn                func(ctx context.Context, user *domain.User) error
+	updateFn                func(ctx context.Context, user *domain.User) (bool, error)
+	softDeleteFn            func(ctx context.Context, id uuid.UUID) (bool, error)
+	getRolesFn              func(ctx context.Context, id uuid.UUID) ([]string, error)
+	getPermissionsFn        func(ctx context.Context, id uuid.UUID) ([]string, error)
+	incrementTokenVersionFn func(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
-func (m *mockRepo) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
+func (m *mockRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	if m.getFn != nil {
 		return m.getFn(ctx, id)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockRepo) List(ctx context.Context, limit, offset int) ([]*User, error) {
+func (m *mockRepo) List(ctx context.Context, limit, offset int) ([]*domain.User, error) {
 	if m.listFn != nil {
 		return m.listFn(ctx, limit, offset)
 	}
 	return nil, errors.New("not implemented")
 }
 
-func (m *mockRepo) Create(ctx context.Context, user *User) error {
+func (m *mockRepo) Create(ctx context.Context, user *domain.User) error {
 	if m.createFn != nil {
 		return m.createFn(ctx, user)
 	}
 	return errors.New("not implemented")
 }
 
-func (m *mockRepo) Update(ctx context.Context, user *User) (bool, error) {
+func (m *mockRepo) Update(ctx context.Context, user *domain.User) (bool, error) {
 	if m.updateFn != nil {
 		return m.updateFn(ctx, user)
 	}
@@ -128,4 +133,32 @@ func (m *mockRepo) SoftDelete(ctx context.Context, id uuid.UUID) (bool, error) {
 		return m.softDeleteFn(ctx, id)
 	}
 	return false, errors.New("not implemented")
+}
+
+func (m *mockRepo) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
+	if m.getByEmailFn != nil {
+		return m.getByEmailFn(ctx, email)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRepo) GetRoles(ctx context.Context, id uuid.UUID) ([]string, error) {
+	if m.getRolesFn != nil {
+		return m.getRolesFn(ctx, id)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRepo) GetPermissions(ctx context.Context, id uuid.UUID) ([]string, error) {
+	if m.getPermissionsFn != nil {
+		return m.getPermissionsFn(ctx, id)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRepo) IncrementTokenVersion(ctx context.Context, id uuid.UUID) (int64, error) {
+	if m.incrementTokenVersionFn != nil {
+		return m.incrementTokenVersionFn(ctx, id)
+	}
+	return 0, errors.New("not implemented")
 }

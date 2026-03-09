@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"admin-service/internal/domain"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/google/uuid"
@@ -38,7 +39,7 @@ func NewService(repo Repository, log *zap.Logger) *Service {
 	}
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	s.log.Debug("get user", zap.Stringer("user_id", id))
 
 	user, err := s.repo.GetByID(ctx, id)
@@ -55,7 +56,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (s *Service) List(ctx context.Context, limit, offset int) ([]*User, error) {
+func (s *Service) List(ctx context.Context, limit, offset int) ([]*domain.User, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -72,7 +73,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]*User, error) 
 	return users, nil
 }
 
-func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error) {
+func (s *Service) Create(ctx context.Context, in CreateUserInput) (*domain.User, error) {
 	if strings.TrimSpace(in.Email) == "" || strings.TrimSpace(in.Password) == "" {
 		return nil, svcerrors.ErrInvalidPayload
 	}
@@ -83,7 +84,7 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error)
 		return nil, svcerrors.ErrInternal
 	}
 
-	user := &User{
+	user := &domain.User{
 		Email:    in.Email,
 		Password: string(hashed),
 		IsActive: in.IsActive,
@@ -97,7 +98,7 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error)
 	return user, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) (*User, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) (*domain.User, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.log.Error("repository GetByID failed", zap.Error(err))

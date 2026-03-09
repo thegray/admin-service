@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"admin-service/internal/domain"
 	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
 
@@ -149,7 +150,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func mapUser(u *users.User) userResponse {
+func mapUser(u *domain.User) userResponse {
 	return userResponse{
 		ID:        u.ID,
 		Email:     u.Email,
@@ -159,7 +160,7 @@ func mapUser(u *users.User) userResponse {
 	}
 }
 
-func mapUsers(list []*users.User) []userResponse {
+func mapUsers(list []*domain.User) []userResponse {
 	out := make([]userResponse, 0, len(list))
 	for _, u := range list {
 		out = append(out, mapUser(u))
