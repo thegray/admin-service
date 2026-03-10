@@ -124,7 +124,7 @@ func seedAdmin(ctx context.Context, db *gorm.DB, repo users.Repository, svc *use
 		return fmt.Errorf("looking up admin user: %w", err)
 	}
 	if user == nil {
-		created, err := svc.Create(ctx, users.CreateUserInput{
+		created, err := svc.Create(ctx, nil, users.CreateUserInput{
 			Email:    email,
 			Password: password,
 			IsActive: true,

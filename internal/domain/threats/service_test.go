@@ -67,7 +67,7 @@ func TestService_List(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo, zap.NewNop())
+	svc := NewService(repo, nil, zap.NewNop())
 
 	list, err := svc.List(ctx, 0, -5)
 	if err != nil {
@@ -100,9 +100,9 @@ func TestService_Create(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewService(repo, zap.NewNop())
+	svc := NewService(repo, nil, zap.NewNop())
 
-	got, err := svc.Create(ctx, input)
+	got, err := svc.Create(ctx, nil, input)
 	if err != nil {
 		t.Fatalf("Create() unexpected error = %v", err)
 	}
@@ -131,7 +131,7 @@ func TestService_Create(t *testing.T) {
 		t.Fatalf("Create() created_by = %v, want %v", got.CreatedBy, input.CreatedBy)
 	}
 
-	_, err = svc.Create(ctx, CreateThreatInput{Title: "a", Type: "b", Severity: "invalid", Indicator: "c", CreatedBy: uuid.New()})
+	_, err = svc.Create(ctx, nil, CreateThreatInput{Title: "a", Type: "b", Severity: "invalid", Indicator: "c", CreatedBy: uuid.New()})
 	if !errors.Is(err, svcerrors.ErrInvalidPayload) {
 		t.Fatalf("Create() severity validation error = %v, want ErrInvalidPayload", err)
 	}
@@ -155,10 +155,10 @@ func TestService_Update(t *testing.T) {
 			return true, nil
 		},
 	}
-	svc := NewService(repo, zap.NewNop())
+	svc := NewService(repo, nil, zap.NewNop())
 
 	newSeverity := "CRITICAL"
-	resp, err := svc.Update(ctx, id, UpdateThreatInput{
+	resp, err := svc.Update(ctx, nil, id, UpdateThreatInput{
 		Title:    ptr(" new "),
 		Type:     ptr("type"),
 		Severity: &newSeverity,
@@ -171,13 +171,13 @@ func TestService_Update(t *testing.T) {
 		t.Fatalf("Update() result = %+v", resp)
 	}
 
-	_, err = svc.Update(ctx, id, UpdateThreatInput{Severity: ptr("wrong")})
+	_, err = svc.Update(ctx, nil, id, UpdateThreatInput{Severity: ptr("wrong")})
 	if !errors.Is(err, svcerrors.ErrInvalidPayload) {
 		t.Fatalf("Update() bad severity = %v, want ErrInvalidPayload", err)
 	}
 
 	repo.getByID = func(context.Context, uuid.UUID) (*domain.Threat, error) { return nil, nil }
-	_, err = svc.Update(ctx, id, UpdateThreatInput{Title: ptr("ok")})
+	_, err = svc.Update(ctx, nil, id, UpdateThreatInput{Title: ptr("ok")})
 	if !errors.Is(err, svcerrors.ErrNotFound) {
 		t.Fatalf("Update() not found = %v, want ErrNotFound", err)
 	}
@@ -189,14 +189,14 @@ func TestService_Delete(t *testing.T) {
 	repo := &mockThreatRepo{
 		delete: func(context.Context, uuid.UUID) (bool, error) { return true, nil },
 	}
-	svc := NewService(repo, zap.NewNop())
+	svc := NewService(repo, nil, zap.NewNop())
 
-	if err := svc.Delete(ctx, id); err != nil {
+	if err := svc.Delete(ctx, nil, id); err != nil {
 		t.Fatalf("Delete() unexpected error = %v", err)
 	}
 
 	repo.delete = func(context.Context, uuid.UUID) (bool, error) { return false, nil }
-	if err := svc.Delete(ctx, id); !errors.Is(err, svcerrors.ErrNotFound) {
+	if err := svc.Delete(ctx, nil, id); !errors.Is(err, svcerrors.ErrNotFound) {
 		t.Fatalf("Delete() not found = %v, want ErrNotFound", err)
 	}
 }

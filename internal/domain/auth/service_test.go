@@ -42,11 +42,13 @@ func TestServiceLoginSuccess(t *testing.T) {
 	cache := NewSessionCache(store, time.Minute)
 	tokenManager, err := auth.NewTokenManager("secret", time.Minute)
 	require.NoError(t, err)
-	service, err := NewService(repo, tokenManager, cache, store, time.Hour, zap.NewNop())
+	service, err := NewService(repo, tokenManager, cache, store, time.Hour, nil, zap.NewNop())
 	require.NoError(t, err)
 
-	tokens, err := service.Login(ctx, user.Email, "secret")
+	tokens, actorID, err := service.Login(ctx, user.Email, "secret")
 	require.NoError(t, err)
+	require.NotNil(t, actorID)
+	require.Equal(t, user.ID, *actorID)
 	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.RefreshToken)
 
@@ -71,7 +73,7 @@ func TestServiceRefreshRotatesToken(t *testing.T) {
 	store := newSpyStore()
 	cache := NewSessionCache(store, time.Minute)
 	tokenManager, _ := auth.NewTokenManager("secret", time.Minute)
-	service, _ := NewService(repo, tokenManager, cache, store, time.Hour, zap.NewNop())
+	service, _ := NewService(repo, tokenManager, cache, store, time.Hour, nil, zap.NewNop())
 
 	state := newSessionState(user, []string{"admin"}, []string{"users:read"})
 	require.NoError(t, cache.Save(ctx, state))
@@ -87,8 +89,10 @@ func TestServiceRefreshRotatesToken(t *testing.T) {
 	oldHash := hashToken(oldRefresh)
 	require.NoError(t, store.Save(ctx, refreshKey(oldHash), data, time.Hour))
 
-	tokens, err := service.Refresh(ctx, oldRefresh)
+	tokens, actorID, err := service.Refresh(ctx, oldRefresh)
 	require.NoError(t, err)
+	require.NotNil(t, actorID)
+	require.Equal(t, user.ID, *actorID)
 	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.RefreshToken)
 
@@ -111,7 +115,7 @@ func TestServiceLogoutClearsSession(t *testing.T) {
 	store := newSpyStore()
 	cache := NewSessionCache(store, time.Minute)
 	tokenManager, _ := auth.NewTokenManager("secret", time.Minute)
-	service, _ := NewService(repo, tokenManager, cache, store, time.Hour, zap.NewNop())
+	service, _ := NewService(repo, tokenManager, cache, store, time.Hour, nil, zap.NewNop())
 
 	state := newSessionState(user, []string{"admin"}, []string{"users:read"})
 	require.NoError(t, cache.Save(ctx, state))
@@ -123,7 +127,10 @@ func TestServiceLogoutClearsSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, store.Save(ctx, refreshKey(hash), bytes, time.Hour))
 
-	require.NoError(t, service.Logout(ctx, refresh))
+	userID, err := service.Logout(ctx, refresh)
+	require.NoError(t, err)
+	require.NotNil(t, userID)
+	require.Equal(t, user.ID, *userID)
 	require.True(t, called, "token version was incremented")
 	require.Contains(t, store.deletedKeys, refreshKey(hash))
 	require.Contains(t, store.deletedKeys, sessionKey(user.ID.String()))

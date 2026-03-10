@@ -7,6 +7,8 @@ import (
 	domain "admin-service/internal/domain/model"
 	svcerrors "admin-service/pkg/errors"
 
+	audit "admin-service/internal/domain/audit"
+
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
@@ -14,7 +16,8 @@ import (
 
 type Service struct {
 	repo Repository
-	log  *zap.Logger
+	log      *zap.Logger
+	auditSvc *audit.Service
 }
 
 type CreateUserInput struct {
@@ -30,13 +33,14 @@ type UpdateUserInput struct {
 	IsActive *bool
 }
 
-func NewService(repo Repository, log *zap.Logger) *Service {
+func NewService(repo Repository, auditSvc *audit.Service, log *zap.Logger) *Service {
 	if log == nil {
 		log = zap.NewNop()
 	}
 	return &Service{
-		repo: repo,
-		log:  log.Named("users-service"),
+		repo:     repo,
+		log:      log.Named("users-service"),
+		auditSvc: auditSvc,
 	}
 }
 
@@ -74,7 +78,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]*domain.User, 
 	return users, nil
 }
 
-func (s *Service) Create(ctx context.Context, in CreateUserInput) (*domain.User, error) {
+func (s *Service) Create(ctx context.Context, actorID *uuid.UUID, in CreateUserInput) (*domain.User, error) {
 	if strings.TrimSpace(in.Email) == "" || strings.TrimSpace(in.Password) == "" {
 		return nil, svcerrors.ErrInvalidPayload
 	}
@@ -114,10 +118,19 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*domain.User,
 		}
 	}
 
+	meta := map[string]any{
+		"email":     user.Email,
+		"is_active": user.IsActive,
+	}
+	if in.RoleID != nil {
+		meta["role_id"] = in.RoleID.String()
+	}
+	s.recordUserAction(ctx, actorID, audit.ActionCreateUser, &user.ID, meta)
+
 	return user, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) (*domain.User, error) {
+func (s *Service) Update(ctx context.Context, actorID *uuid.UUID, id uuid.UUID, in UpdateUserInput) (*domain.User, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.log.Error("repository GetByID failed", zap.Error(err))
@@ -155,11 +168,24 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) 
 	if !updated {
 		return nil, svcerrors.ErrNotFound
 	}
+	fields := make([]string, 0, 3)
+	if in.Email != nil {
+		fields = append(fields, "email")
+	}
+	if in.Password != nil {
+		fields = append(fields, "password")
+	}
+	if in.IsActive != nil {
+		fields = append(fields, "is_active")
+	}
+	s.recordUserAction(ctx, actorID, audit.ActionUpdateUser, &user.ID, map[string]any{
+		"fields": fields,
+	})
 
 	return user, nil
 }
 
-func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
+func (s *Service) Delete(ctx context.Context, actorID *uuid.UUID, id uuid.UUID) error {
 	changed, err := s.repo.SoftDelete(ctx, id)
 	if err != nil {
 		s.log.Error("repository SoftDelete failed", zap.Error(err))
@@ -168,7 +194,22 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 	if !changed {
 		return svcerrors.ErrNotFound
 	}
+	s.recordUserAction(ctx, actorID, audit.ActionDeleteUser, &id, nil)
 	return nil
+}
+
+func (s *Service) recordUserAction(ctx context.Context, actorID *uuid.UUID, action string, resourceID *uuid.UUID, metadata map[string]any) {
+	if s.auditSvc == nil {
+		return
+	}
+	s.auditSvc.Record(ctx, audit.RecordInput{
+		ActorID:      actorID,
+		Action:       action,
+		ResourceType: audit.ResourceTypeUser,
+		ResourceID:   resourceID,
+		Status:       audit.StatusSuccess,
+		Metadata:     metadata,
+	})
 }
 
 func isEmailConflict(err error) bool {

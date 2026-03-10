@@ -29,8 +29,8 @@ func TestServiceCreateHashesPassword(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo, zap.NewNop())
-	user, err := svc.Create(context.Background(), input)
+	svc := NewService(repo, nil, zap.NewNop())
+	user, err := svc.Create(context.Background(), nil, input)
 	require.NoError(t, err)
 	require.NotNil(t, user)
 	require.NotNil(t, captured)
@@ -41,8 +41,8 @@ func TestServiceCreateHashesPassword(t *testing.T) {
 }
 
 func TestServiceCreateInvalidPayload(t *testing.T) {
-	svc := NewService(&mockRepo{}, zap.NewNop())
-	_, err := svc.Create(context.Background(), CreateUserInput{Email: "", Password: ""})
+	svc := NewService(&mockRepo{}, nil, zap.NewNop())
+	_, err := svc.Create(context.Background(), nil, CreateUserInput{Email: "", Password: ""})
 	require.ErrorIs(t, err, svcerrors.ErrInvalidPayload)
 }
 
@@ -53,8 +53,8 @@ func TestServiceUpdateNotFound(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo, zap.NewNop())
-	_, err := svc.Update(context.Background(), uuid.New(), UpdateUserInput{})
+	svc := NewService(repo, nil, zap.NewNop())
+	_, err := svc.Update(context.Background(), nil, uuid.New(), UpdateUserInput{})
 	require.ErrorIs(t, err, svcerrors.ErrNotFound)
 }
 
@@ -65,8 +65,8 @@ func TestServiceDeleteDeletedMissing(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo, zap.NewNop())
-	err := svc.Delete(context.Background(), uuid.New())
+	svc := NewService(repo, nil, zap.NewNop())
+	err := svc.Delete(context.Background(), nil, uuid.New())
 	require.ErrorIs(t, err, svcerrors.ErrNotFound)
 }
 
@@ -80,7 +80,7 @@ func TestServiceListDefaults(t *testing.T) {
 		},
 	}
 
-	svc := NewService(repo, zap.NewNop())
+	svc := NewService(repo, nil, zap.NewNop())
 	list, err := svc.List(context.Background(), 0, -1)
 	require.NoError(t, err)
 	require.Len(t, list, 1)
