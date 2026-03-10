@@ -223,6 +223,46 @@ func selectSecretProvider(ctx context.Context, env string) (secretProvider, func
 	}
 }
 
+// get runtime secret using the same provider logic used in Load
+func ResolveSecret(ctx context.Context, env string, key secretKey) (string, error) {
+	provider, closer, err := selectSecretProvider(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	if closer != nil {
+		defer closer()
+	}
+
+	val, err := provider.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if val == "" {
+		return "", fmt.Errorf("secret %s is empty", key)
+	}
+	return val, nil
+}
+
+// returns (value, false) when the secret is missing
+func ResolveOptionalSecret(ctx context.Context, env string, key secretKey) (string, bool, error) {
+	provider, closer, err := selectSecretProvider(ctx, env)
+	if err != nil {
+		return "", false, err
+	}
+	if closer != nil {
+		defer closer()
+	}
+
+	val, err := provider.Get(ctx, key)
+	if err != nil {
+		return "", false, err
+	}
+	if val == "" {
+		return "", false, nil
+	}
+	return val, true, nil
+}
+
 func loadFileConfig(path string) (fileConfig, error) {
 	var cfg fileConfig
 	data, err := os.ReadFile(path)
