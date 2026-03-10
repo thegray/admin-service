@@ -6,8 +6,8 @@ import (
 
 	domain "admin-service/internal/domain/model"
 	"admin-service/internal/domain/threats"
+	"admin-service/pkg/audit"
 	svcerrors "admin-service/pkg/errors"
-	"admin-service/pkg/middleware"
 	"admin-service/pkg/utils"
 
 	"github.com/gin-gonic/gin"
@@ -63,7 +63,7 @@ func (h *Handler) ListThreats(c *gin.Context) {
 		limit = 100
 	}
 
-	ctx := c.Request.Context()
+	ctx := audit.AuditRequestContext(c)
 	list, err := h.threatSvc.List(ctx, limit, req.Offset)
 	if err != nil {
 		respondWithError(c, err)
@@ -88,7 +88,7 @@ func (h *Handler) GetThreat(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
+	ctx := audit.AuditRequestContext(c)
 	threat, err := h.threatSvc.GetByID(ctx, threatID)
 	if err != nil {
 		respondWithError(c, err)
@@ -105,8 +105,8 @@ func (h *Handler) CreateThreat(c *gin.Context) {
 		return
 	}
 
-	user, ok := middleware.AuthUserFromContext(c)
-	if !ok {
+	actorID := audit.AuditActorID(c)
+	if actorID == nil {
 		respondWithError(c, svcerrors.ErrUnauthorized)
 		return
 	}
@@ -116,14 +116,14 @@ func (h *Handler) CreateThreat(c *gin.Context) {
 		description = *req.Description
 	}
 
-	ctx := c.Request.Context()
-	threat, err := h.threatSvc.Create(ctx, threats.CreateThreatInput{
+	ctx := audit.AuditRequestContext(c)
+	threat, err := h.threatSvc.Create(ctx, actorID, threats.CreateThreatInput{
 		Title:       req.Title,
 		Type:        req.Type,
 		Severity:    req.Severity,
 		Indicator:   req.Indicator,
 		Description: description,
-		CreatedBy:   user.ID,
+		CreatedBy:   *actorID,
 	})
 	if err != nil {
 		respondWithError(c, err)
@@ -152,8 +152,9 @@ func (h *Handler) UpdateThreat(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	threat, err := h.threatSvc.Update(ctx, threatID, threats.UpdateThreatInput{
+	ctx := audit.AuditRequestContext(c)
+	actorID := audit.AuditActorID(c)
+	threat, err := h.threatSvc.Update(ctx, actorID, threatID, threats.UpdateThreatInput{
 		Title:       req.Title,
 		Type:        req.Type,
 		Severity:    req.Severity,
@@ -181,8 +182,9 @@ func (h *Handler) DeleteThreat(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	if err := h.threatSvc.Delete(ctx, threatID); err != nil {
+	ctx := audit.AuditRequestContext(c)
+	actorID := audit.AuditActorID(c)
+	if err := h.threatSvc.Delete(ctx, actorID, threatID); err != nil {
 		respondWithError(c, err)
 		return
 	}

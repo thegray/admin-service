@@ -3,6 +3,7 @@ package rest
 import (
 	"net/http"
 
+	"admin-service/pkg/audit"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/gin-gonic/gin"
@@ -33,7 +34,8 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authSvc.Login(c.Request.Context(), req.Email, req.Password)
+	ctx := audit.AuditRequestContext(c)
+	tokens, _, err := h.authSvc.Login(ctx, req.Email, req.Password)
 	if err != nil {
 		respondWithError(c, err)
 		return
@@ -52,7 +54,8 @@ func (h *Handler) Refresh(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.authSvc.Refresh(c.Request.Context(), req.RefreshToken)
+	ctx := audit.AuditRequestContext(c)
+	tokens, _, err := h.authSvc.Refresh(ctx, req.RefreshToken)
 	if err != nil {
 		respondWithError(c, err)
 		return
@@ -71,7 +74,9 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.authSvc.Logout(c.Request.Context(), req.RefreshToken); err != nil {
+	ctx := audit.AuditRequestContext(c)
+	_, err := h.authSvc.Logout(ctx, req.RefreshToken)
+	if err != nil {
 		respondWithError(c, err)
 		return
 	}

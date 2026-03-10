@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	auditdomain "admin-service/internal/domain/audit"
 	authdomain "admin-service/internal/domain/auth"
 	"admin-service/internal/domain/example"
 	"admin-service/internal/domain/threats"
@@ -19,6 +20,7 @@ type Handler struct {
 	userSvc        *users.Service
 	threatSvc      *threats.Service
 	authSvc        *authdomain.Service
+	auditSvc       *auditdomain.Service
 	log            *zap.Logger
 	rateLimiter    gin.HandlerFunc
 	authMiddleware gin.HandlerFunc
@@ -29,6 +31,7 @@ func NewHandler(
 	userSvc *users.Service,
 	threatSvc *threats.Service,
 	authSvc *authdomain.Service,
+	auditSvc *auditdomain.Service,
 	logger *zap.Logger,
 	rateLimiter gin.HandlerFunc,
 	authMiddleware gin.HandlerFunc,
@@ -38,6 +41,7 @@ func NewHandler(
 		userSvc:        userSvc,
 		threatSvc:      threatSvc,
 		authSvc:        authSvc,
+		auditSvc:       auditSvc,
 		log:            logger.Named("admin-api"),
 		rateLimiter:    rateLimiter,
 		authMiddleware: authMiddleware,

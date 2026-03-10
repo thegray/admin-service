@@ -6,6 +6,7 @@ import (
 
 	domain "admin-service/internal/domain/model"
 	"admin-service/internal/domain/users"
+	"admin-service/pkg/audit"
 	svcerrors "admin-service/pkg/errors"
 	"admin-service/pkg/utils"
 
@@ -55,7 +56,7 @@ func (h *Handler) ListUsers(c *gin.Context) {
 		limit = 100
 	}
 
-	ctx := c.Request.Context()
+	ctx := audit.AuditRequestContext(c)
 	usersList, err := h.userSvc.List(ctx, limit, req.Offset)
 	if err != nil {
 		respondWithError(c, err)
@@ -83,7 +84,7 @@ func (h *Handler) GetUser(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
+	ctx := audit.AuditRequestContext(c)
 	user, err := h.userSvc.GetByID(ctx, userID)
 	if err != nil {
 		respondWithError(c, err)
@@ -105,7 +106,8 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		isActive = *req.IsActive
 	}
 
-	ctx := c.Request.Context()
+	ctx := audit.AuditRequestContext(c)
+	actorID := audit.AuditActorID(c)
 	var roleID *uuid.UUID
 	if req.RoleID != nil {
 		parsed, err := uuid.Parse(*req.RoleID)
@@ -117,7 +119,7 @@ func (h *Handler) CreateUser(c *gin.Context) {
 		roleID = &parsed
 	}
 
-	user, err := h.userSvc.Create(ctx, users.CreateUserInput{
+	user, err := h.userSvc.Create(ctx, actorID, users.CreateUserInput{
 		Email:    req.Email,
 		Password: req.Password,
 		IsActive: isActive,
@@ -150,8 +152,9 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	user, err := h.userSvc.Update(ctx, userID, users.UpdateUserInput{
+	ctx := audit.AuditRequestContext(c)
+	actorID := audit.AuditActorID(c)
+	user, err := h.userSvc.Update(ctx, actorID, userID, users.UpdateUserInput{
 		Email:    body.Email,
 		Password: body.Password,
 		IsActive: body.IsActive,
@@ -177,8 +180,9 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	ctx := c.Request.Context()
-	if err := h.userSvc.Delete(ctx, userID); err != nil {
+	ctx := audit.AuditRequestContext(c)
+	actorID := audit.AuditActorID(c)
+	if err := h.userSvc.Delete(ctx, actorID, userID); err != nil {
 		respondWithError(c, err)
 		return
 	}
