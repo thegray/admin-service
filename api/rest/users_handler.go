@@ -4,11 +4,14 @@ import (
 	"net/http"
 	"time"
 
+	domain "admin-service/internal/domain/model"
 	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
+	"admin-service/pkg/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type listUsersRequest struct {
@@ -17,9 +20,10 @@ type listUsersRequest struct {
 }
 
 type createUserRequest struct {
-	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=8"`
-	IsActive *bool  `json:"is_active"`
+	Email    string  `json:"email" binding:"required,email"`
+	Password string  `json:"password" binding:"required,min=8"`
+	IsActive *bool   `json:"is_active"`
+	RoleID   *string `json:"role_id" binding:"omitempty,uuid"`
 }
 
 type updateUserRequest struct {
@@ -29,7 +33,7 @@ type updateUserRequest struct {
 }
 
 type userURIRequest struct {
-	ID uuid.UUID `uri:"id" binding:"required,uuid"`
+	ID string `uri:"id" binding:"required"`
 }
 
 type userResponse struct {
@@ -66,12 +70,21 @@ func (h *Handler) ListUsers(c *gin.Context) {
 func (h *Handler) GetUser(c *gin.Context) {
 	var req userURIRequest
 	if err := c.ShouldBindUri(&req); err != nil {
+		if h.log != nil {
+			h.log.Warn("failed to bind user id uri", zap.Error(err), zap.String("raw_id", c.Param("id")))
+		}
+		respondWithError(c, svcerrors.ErrInvalidPayload)
+		return
+	}
+
+	userID, ok := utils.ParseID(c, req.ID, h.log)
+	if !ok {
 		respondWithError(c, svcerrors.ErrInvalidPayload)
 		return
 	}
 
 	ctx := c.Request.Context()
-	user, err := h.userSvc.GetByID(ctx, req.ID)
+	user, err := h.userSvc.GetByID(ctx, userID)
 	if err != nil {
 		respondWithError(c, err)
 		return
@@ -93,10 +106,22 @@ func (h *Handler) CreateUser(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	var roleID *uuid.UUID
+	if req.RoleID != nil {
+		parsed, err := uuid.Parse(*req.RoleID)
+		if err != nil {
+			h.log.Warn("invalid role id", zap.Error(err), zap.String("raw_role_id", *req.RoleID))
+			respondWithError(c, svcerrors.ErrInvalidPayload)
+			return
+		}
+		roleID = &parsed
+	}
+
 	user, err := h.userSvc.Create(ctx, users.CreateUserInput{
 		Email:    req.Email,
 		Password: req.Password,
 		IsActive: isActive,
+		RoleID:   roleID,
 	})
 	if err != nil {
 		respondWithError(c, err)
@@ -113,6 +138,12 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	userID, ok := utils.ParseID(c, uriReq.ID, h.log)
+	if !ok {
+		respondWithError(c, svcerrors.ErrInvalidPayload)
+		return
+	}
+
 	var body updateUserRequest
 	if err := c.ShouldBindJSON(&body); err != nil {
 		respondWithError(c, svcerrors.ErrInvalidPayload)
@@ -120,7 +151,7 @@ func (h *Handler) UpdateUser(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
-	user, err := h.userSvc.Update(ctx, uriReq.ID, users.UpdateUserInput{
+	user, err := h.userSvc.Update(ctx, userID, users.UpdateUserInput{
 		Email:    body.Email,
 		Password: body.Password,
 		IsActive: body.IsActive,
@@ -140,8 +171,14 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 		return
 	}
 
+	userID, ok := utils.ParseID(c, req.ID, h.log)
+	if !ok {
+		respondWithError(c, svcerrors.ErrInvalidPayload)
+		return
+	}
+
 	ctx := c.Request.Context()
-	if err := h.userSvc.Delete(ctx, req.ID); err != nil {
+	if err := h.userSvc.Delete(ctx, userID); err != nil {
 		respondWithError(c, err)
 		return
 	}
@@ -149,7 +186,7 @@ func (h *Handler) DeleteUser(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func mapUser(u *users.User) userResponse {
+func mapUser(u *domain.User) userResponse {
 	return userResponse{
 		ID:        u.ID,
 		Email:     u.Email,
@@ -159,7 +196,7 @@ func mapUser(u *users.User) userResponse {
 	}
 }
 
-func mapUsers(list []*users.User) []userResponse {
+func mapUsers(list []*domain.User) []userResponse {
 	out := make([]userResponse, 0, len(list))
 	for _, u := range list {
 		out = append(out, mapUser(u))

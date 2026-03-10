@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,18 +14,17 @@ const (
 
 func RequirePermission(required string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("X-User-Permissions") // temp, will be replaced by jwt
-		if header == "" {
+		user, ok := AuthUserFromContext(c)
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"code":    "permission_denied",
-				"message": "missing permission grant",
+				"message": "permission denied",
 			})
 			return
 		}
 
-		perms := strings.Split(header, ",")
-		for _, p := range perms {
-			if strings.TrimSpace(p) == required {
+		for _, perm := range user.Permissions {
+			if perm == required {
 				c.Next()
 				return
 			}

@@ -15,7 +15,18 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	// system routes
 	r.GET("/health", h.HealthCheck)
 
+	authGroup := r.Group("/auth")
+	if h.rateLimiter != nil {
+		authGroup.Use(h.rateLimiter)
+	}
+	authGroup.POST("/login", h.Login)
+	authGroup.POST("/refresh", h.Refresh)
+	authGroup.POST("/logout", h.Logout)
+
 	v1 := r.Group("/api/v1")
+	if h.authMiddleware != nil {
+		v1.Use(h.authMiddleware)
+	}
 
 	h.initExampleRoutes(v1)
 	h.initUserRoutes(v1)

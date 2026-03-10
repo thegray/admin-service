@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	domain "admin-service/internal/domain/model"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/google/uuid"
@@ -20,6 +21,7 @@ type CreateUserInput struct {
 	Email    string
 	Password string
 	IsActive bool
+	RoleID   *uuid.UUID
 }
 
 type UpdateUserInput struct {
@@ -38,7 +40,7 @@ func NewService(repo Repository, log *zap.Logger) *Service {
 	}
 }
 
-func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
+func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
 	s.log.Debug("get user", zap.Stringer("user_id", id))
 
 	user, err := s.repo.GetByID(ctx, id)
@@ -55,7 +57,7 @@ func (s *Service) GetByID(ctx context.Context, id uuid.UUID) (*User, error) {
 	return user, nil
 }
 
-func (s *Service) List(ctx context.Context, limit, offset int) ([]*User, error) {
+func (s *Service) List(ctx context.Context, limit, offset int) ([]*domain.User, error) {
 	if limit <= 0 {
 		limit = 100
 	}
@@ -72,7 +74,7 @@ func (s *Service) List(ctx context.Context, limit, offset int) ([]*User, error) 
 	return users, nil
 }
 
-func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error) {
+func (s *Service) Create(ctx context.Context, in CreateUserInput) (*domain.User, error) {
 	if strings.TrimSpace(in.Email) == "" || strings.TrimSpace(in.Password) == "" {
 		return nil, svcerrors.ErrInvalidPayload
 	}
@@ -83,7 +85,7 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error)
 		return nil, svcerrors.ErrInternal
 	}
 
-	user := &User{
+	user := &domain.User{
 		Email:    in.Email,
 		Password: string(hashed),
 		IsActive: in.IsActive,
@@ -91,13 +93,31 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*User, error)
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		s.log.Error("repository Create failed", zap.Error(err))
+		if isEmailConflict(err) {
+			return nil, svcerrors.ErrEmailExists
+		}
 		return nil, svcerrors.ErrInternal
+	}
+
+	if in.RoleID != nil {
+		role, err := s.repo.GetRoleByID(ctx, *in.RoleID)
+		if err != nil {
+			s.log.Error("failed to fetch role", zap.Error(err))
+			return nil, svcerrors.ErrInternal
+		}
+		if role == nil {
+			return nil, svcerrors.ErrRoleNotFound
+		}
+		if err := s.repo.AssignRole(ctx, user.ID, role.ID); err != nil {
+			s.log.Error("failed to assign role", zap.Error(err))
+			return nil, svcerrors.ErrInternal
+		}
 	}
 
 	return user, nil
 }
 
-func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) (*User, error) {
+func (s *Service) Update(ctx context.Context, id uuid.UUID, in UpdateUserInput) (*domain.User, error) {
 	user, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		s.log.Error("repository GetByID failed", zap.Error(err))
@@ -149,4 +169,16 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 		return svcerrors.ErrNotFound
 	}
 	return nil
+}
+
+func isEmailConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "duplicate key value") &&
+		!strings.Contains(msg, "unique constraint") {
+		return false
+	}
+	return strings.Contains(msg, "users_email_key") || strings.Contains(msg, "users_email_unique")
 }
