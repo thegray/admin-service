@@ -11,20 +11,26 @@ import (
 	"golang.org/x/time/rate"
 
 	"admin-service/api/rest"
+	authdomain "admin-service/internal/domain/auth"
+	authrepo "admin-service/internal/domain/auth/repository"
 	"admin-service/internal/domain/example"
 	exampleRepo "admin-service/internal/domain/example/repository"
 	"admin-service/internal/domain/users"
 	usersRepo "admin-service/internal/domain/users/repository"
+	"admin-service/pkg/auth"
 	"admin-service/pkg/config"
+	initpkg "admin-service/pkg/init"
 	"admin-service/pkg/logger"
 	"admin-service/pkg/middleware"
 	"admin-service/pkg/postgres"
 	"admin-service/pkg/prometheus"
+	"admin-service/pkg/redisclient"
 	serverpkg "admin-service/pkg/server"
 )
 
 func main() {
-	cfg, err := config.Load(context.Background())
+	ctx := context.Background()
+	cfg, err := config.Load(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to load configuration: %v\n", err)
 		os.Exit(1)
@@ -51,9 +57,12 @@ func main() {
 	router.Use(metrics.Middleware())
 	router.GET("/metrics", metrics.Handler())
 
-	db, err := postgres.Connect(context.Background(), cfg)
+	db, err := postgres.Connect(ctx, cfg)
 	if err != nil {
 		log.Fatal("unable to connect to postgres", zap.Error(err))
+	}
+	if err := postgres.Migrate(db); err != nil {
+		log.Fatal("unable to migrate postgres schema", zap.Error(err))
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -67,10 +76,34 @@ func main() {
 	userRepository := usersRepo.NewPostgresRepository(db, log)
 	userService := users.NewService(userRepository, log)
 
+	if err := initpkg.InitAdmin(ctx, cfg, db, userRepository, userService, log); err != nil {
+		log.Fatal("failed to seed admin data", zap.Error(err))
+	}
+
+	redisClient := redisclient.New(cfg)
+	defer func() {
+		_ = redisClient.Close()
+	}()
+
+	tokenManager, err := auth.NewTokenManager(cfg.TokenSecret, cfg.AccessTokenTTL)
+	if err != nil {
+		log.Fatal("failed to build token manager", zap.Error(err))
+	}
+
+	store := authrepo.NewRedisStore(redisClient)
+	sessionCache := authdomain.NewSessionCache(store, cfg.UserCacheTTL)
+
+	authService, err := authdomain.NewService(userRepository, tokenManager, sessionCache, store, cfg.RefreshTokenTTL, log)
+	if err != nil {
+		log.Fatal("failed to initialize auth service", zap.Error(err))
+	}
+
+	authMiddleware := middleware.AuthMiddleware(tokenManager, userRepository, sessionCache, log)
+
 	exampleRepository := exampleRepo.NewInMemoryRepository(log)
 	service := example.NewService(exampleRepository, log)
 	limiter := middleware.RateLimitMiddleware(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	handler := rest.NewHandler(service, userService, log, limiter)
+	handler := rest.NewHandler(service, userService, authService, log, limiter, authMiddleware)
 	handler.RegisterRoutes(router)
 
 	server := &http.Server{
