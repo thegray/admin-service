@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 	h.initExampleRoutes(v1)
 	h.initUserRoutes(v1)
+	h.initThreatRoutes(v1)
 }
 
 func (h *Handler) initExampleRoutes(rg *gin.RouterGroup) {
@@ -55,4 +56,18 @@ func (h *Handler) initUserRoutes(rg *gin.RouterGroup) {
 	usersGroup.POST("/", middleware.RequirePermission(middleware.PermissionUsersWrite), h.CreateUser)
 	usersGroup.PUT("/:id", middleware.RequirePermission(middleware.PermissionUsersWrite), h.UpdateUser)
 	usersGroup.DELETE("/:id", middleware.RequirePermission(middleware.PermissionUsersDelete), h.DeleteUser)
+}
+
+func (h *Handler) initThreatRoutes(rg *gin.RouterGroup) {
+	threatsGroup := rg.Group("/threats")
+
+	if h.rateLimiter != nil {
+		threatsGroup.Use(h.rateLimiter)
+	}
+
+	threatsGroup.GET("/", middleware.RequirePermission(middleware.PermissionThreatsRead), h.ListThreats)
+	threatsGroup.GET("/:id", middleware.RequirePermission(middleware.PermissionThreatsRead), h.GetThreat)
+	threatsGroup.POST("/", middleware.RequirePermission(middleware.PermissionThreatsWrite), h.CreateThreat)
+	threatsGroup.PUT("/:id", middleware.RequirePermission(middleware.PermissionThreatsWrite), h.UpdateThreat)
+	threatsGroup.DELETE("/:id", middleware.RequirePermission(middleware.PermissionThreatsDelete), h.DeleteThreat)
 }
