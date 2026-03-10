@@ -11,6 +11,8 @@ import (
 	"golang.org/x/time/rate"
 
 	"admin-service/api/rest"
+	auditdomain "admin-service/internal/domain/audit"
+	auditRepo "admin-service/internal/domain/audit/repository"
 	authdomain "admin-service/internal/domain/auth"
 	authrepo "admin-service/internal/domain/auth/repository"
 	"admin-service/internal/domain/example"
@@ -76,14 +78,16 @@ func main() {
 	}
 
 	userRepository := usersRepo.NewPostgresRepository(db, log)
-	userService := users.NewService(userRepository, log)
+	threatRepository := threatsRepo.NewPostgresRepository(db, log)
+	auditRepository := auditRepo.NewPostgresRepository(db, log)
+	auditService := auditdomain.NewService(auditRepository, log)
 
+	userService := users.NewService(userRepository, auditService, log)
 	if err := initpkg.InitAdmin(ctx, cfg, db, userRepository, userService, log); err != nil {
 		log.Fatal("failed to seed admin data", zap.Error(err))
 	}
 
-	threatRepository := threatsRepo.NewPostgresRepository(db, log)
-	threatService := threats.NewService(threatRepository, log)
+	threatService := threats.NewService(threatRepository, auditService, log)
 
 	redisClient := redisclient.New(cfg)
 	defer func() {
@@ -98,7 +102,7 @@ func main() {
 	store := authrepo.NewRedisStore(redisClient)
 	sessionCache := authdomain.NewSessionCache(store, cfg.UserCacheTTL)
 
-	authService, err := authdomain.NewService(userRepository, tokenManager, sessionCache, store, cfg.RefreshTokenTTL, log)
+	authService, err := authdomain.NewService(userRepository, tokenManager, sessionCache, store, cfg.RefreshTokenTTL, auditService, log)
 	if err != nil {
 		log.Fatal("failed to initialize auth service", zap.Error(err))
 	}
@@ -108,7 +112,7 @@ func main() {
 	exampleRepository := exampleRepo.NewInMemoryRepository(log)
 	service := example.NewService(exampleRepository, log)
 	limiter := middleware.RateLimitMiddleware(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	handler := rest.NewHandler(service, userService, threatService, authService, log, limiter, authMiddleware)
+	handler := rest.NewHandler(service, userService, threatService, authService, auditService, log, limiter, authMiddleware)
 	handler.RegisterRoutes(router)
 
 	server := &http.Server{
