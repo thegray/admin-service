@@ -15,6 +15,20 @@ const (
 	StatusFailure      = "failure"
 	defaultWorkerCount = 4
 	defaultQueueSize   = 256
+
+	ResourceTypeAuth   = "auth"
+	ResourceTypeUser   = "user"
+	ResourceTypeThreat = "threat"
+
+	ActionLogin        = "login"
+	ActionRefreshToken = "refresh_token"
+	ActionLogout       = "logout"
+	ActionCreateUser   = "create_user"
+	ActionUpdateUser   = "update_user"
+	ActionDeleteUser   = "delete_user"
+	ActionCreateThreat = "create_threat"
+	ActionUpdateThreat = "update_threat"
+	ActionDeleteThreat = "delete_threat"
 )
 
 type Repository interface {
@@ -36,6 +50,33 @@ type RecordInput struct {
 	IPAddress    string
 	UserAgent    string
 	Metadata     map[string]any
+}
+
+// RequestMetadata captures request-scoped fields that audit logs can reuse.
+type RequestMetadata struct {
+	IP        string
+	UserAgent string
+}
+
+type requestMetadataKey struct{}
+
+// WithRequestMetadata attaches request metadata to the provided context.
+func WithRequestMetadata(ctx context.Context, metadata RequestMetadata) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, requestMetadataKey{}, metadata)
+}
+
+// RequestMetadataFromContext retrieves audit metadata from the context, defaulting to empty values.
+func RequestMetadataFromContext(ctx context.Context) RequestMetadata {
+	if ctx == nil {
+		return RequestMetadata{}
+	}
+	if val, ok := ctx.Value(requestMetadataKey{}).(RequestMetadata); ok {
+		return val
+	}
+	return RequestMetadata{}
 }
 
 func NewService(repo Repository, log *zap.Logger) *Service {
@@ -99,13 +140,23 @@ func (s *Service) Record(ctx context.Context, input RecordInput) {
 		data = []byte("null")
 	}
 
+	meta := RequestMetadataFromContext(ctx)
+	ip := input.IPAddress
+	if ip == "" {
+		ip = meta.IP
+	}
+	ua := input.UserAgent
+	if ua == "" {
+		ua = meta.UserAgent
+	}
+
 	entry := &domain.AuditLog{
 		UserID:       input.ActorID,
 		Action:       input.Action,
 		ResourceType: input.ResourceType,
 		ResourceID:   input.ResourceID,
-		IPAddress:    input.IPAddress,
-		UserAgent:    input.UserAgent,
+		IPAddress:    ip,
+		UserAgent:    ua,
 		Status:       status,
 		Metadata:     data,
 	}
