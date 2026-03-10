@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 	pkgerrors "admin-service/pkg/errors"
 
 	"go.uber.org/zap"
