@@ -1,7 +1,7 @@
 package users
 
 import (
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 	"context"
 
 	"github.com/google/uuid"

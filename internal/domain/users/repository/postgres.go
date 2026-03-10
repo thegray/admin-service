@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 	"admin-service/internal/domain/users"
 
 	"github.com/google/uuid"

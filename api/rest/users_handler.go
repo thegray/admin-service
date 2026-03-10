@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
 

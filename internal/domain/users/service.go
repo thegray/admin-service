@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/google/uuid"
