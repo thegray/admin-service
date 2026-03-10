@@ -98,6 +98,8 @@ type mockRepo struct {
 	getRolesFn              func(ctx context.Context, id uuid.UUID) ([]string, error)
 	getPermissionsFn        func(ctx context.Context, id uuid.UUID) ([]string, error)
 	incrementTokenVersionFn func(ctx context.Context, id uuid.UUID) (int64, error)
+	getRoleByIDFn           func(ctx context.Context, id uuid.UUID) (*domain.Role, error)
+	assignRoleFn            func(ctx context.Context, userID, roleID uuid.UUID) error
 }
 
 func (m *mockRepo) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
@@ -161,4 +163,18 @@ func (m *mockRepo) IncrementTokenVersion(ctx context.Context, id uuid.UUID) (int
 		return m.incrementTokenVersionFn(ctx, id)
 	}
 	return 0, errors.New("not implemented")
+}
+
+func (m *mockRepo) GetRoleByID(ctx context.Context, id uuid.UUID) (*domain.Role, error) {
+	if m.getRoleByIDFn != nil {
+		return m.getRoleByIDFn(ctx, id)
+	}
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockRepo) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
+	if m.assignRoleFn != nil {
+		return m.assignRoleFn(ctx, userID, roleID)
+	}
+	return errors.New("not implemented")
 }

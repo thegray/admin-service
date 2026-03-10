@@ -17,4 +17,6 @@ type Repository interface {
 	GetRoles(ctx context.Context, userID uuid.UUID) ([]string, error)
 	GetPermissions(ctx context.Context, userID uuid.UUID) ([]string, error)
 	IncrementTokenVersion(ctx context.Context, id uuid.UUID) (int64, error)
+	GetRoleByID(ctx context.Context, id uuid.UUID) (*domain.Role, error)
+	AssignRole(ctx context.Context, userID, roleID uuid.UUID) error
 }

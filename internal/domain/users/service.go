@@ -21,6 +21,7 @@ type CreateUserInput struct {
 	Email    string
 	Password string
 	IsActive bool
+	RoleID   *uuid.UUID
 }
 
 type UpdateUserInput struct {
@@ -92,7 +93,25 @@ func (s *Service) Create(ctx context.Context, in CreateUserInput) (*domain.User,
 
 	if err := s.repo.Create(ctx, user); err != nil {
 		s.log.Error("repository Create failed", zap.Error(err))
+		if isEmailConflict(err) {
+			return nil, svcerrors.ErrEmailExists
+		}
 		return nil, svcerrors.ErrInternal
+	}
+
+	if in.RoleID != nil {
+		role, err := s.repo.GetRoleByID(ctx, *in.RoleID)
+		if err != nil {
+			s.log.Error("failed to fetch role", zap.Error(err))
+			return nil, svcerrors.ErrInternal
+		}
+		if role == nil {
+			return nil, svcerrors.ErrRoleNotFound
+		}
+		if err := s.repo.AssignRole(ctx, user.ID, role.ID); err != nil {
+			s.log.Error("failed to assign role", zap.Error(err))
+			return nil, svcerrors.ErrInternal
+		}
 	}
 
 	return user, nil
@@ -150,4 +169,16 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID) error {
 		return svcerrors.ErrNotFound
 	}
 	return nil
+}
+
+func isEmailConflict(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "duplicate key value") &&
+		!strings.Contains(msg, "unique constraint") {
+		return false
+	}
+	return strings.Contains(msg, "users_email_key") || strings.Contains(msg, "users_email_unique")
 }

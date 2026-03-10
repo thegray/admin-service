@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type PostgresRepository struct {
@@ -219,6 +220,32 @@ func (r *PostgresRepository) IncrementTokenVersion(ctx context.Context, id uuid.
 		return 0, err
 	}
 	return user.TokenVersion, nil
+}
+
+func (r *PostgresRepository) GetRoleByID(ctx context.Context, id uuid.UUID) (*domain.Role, error) {
+	r.log.Debug("GetRoleByID", zap.Stringer("role_id", id))
+	var role domain.Role
+	err := r.db.WithContext(ctx).
+		Where("id = ?", id).
+		First(&role).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &role, nil
+}
+
+func (r *PostgresRepository) AssignRole(ctx context.Context, userID, roleID uuid.UUID) error {
+	r.log.Debug("AssignRole", zap.Stringer("user_id", userID), zap.Stringer("role_id", roleID))
+	link := domain.UserRole{
+		UserID: userID,
+		RoleID: roleID,
+	}
+	return r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&link).Error
 }
 
 var _ users.Repository = (*PostgresRepository)(nil)
