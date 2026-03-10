@@ -7,9 +7,12 @@ import (
 )
 
 const (
-	PermissionUsersRead   = "users:read"
-	PermissionUsersWrite  = "users:write"
-	PermissionUsersDelete = "users:delete"
+	PermissionUsersRead     = "users:read"
+	PermissionUsersWrite    = "users:write"
+	PermissionUsersDelete   = "users:delete"
+	PermissionThreatsRead   = "threats:read"
+	PermissionThreatsWrite  = "threats:write"
+	PermissionThreatsDelete = "threats:delete"
 )
 
 func RequirePermission(required string) gin.HandlerFunc {
