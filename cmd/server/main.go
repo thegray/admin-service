@@ -15,6 +15,8 @@ import (
 	authrepo "admin-service/internal/domain/auth/repository"
 	"admin-service/internal/domain/example"
 	exampleRepo "admin-service/internal/domain/example/repository"
+	"admin-service/internal/domain/threats"
+	threatsRepo "admin-service/internal/domain/threats/repository"
 	"admin-service/internal/domain/users"
 	usersRepo "admin-service/internal/domain/users/repository"
 	"admin-service/pkg/auth"
@@ -80,6 +82,9 @@ func main() {
 		log.Fatal("failed to seed admin data", zap.Error(err))
 	}
 
+	threatRepository := threatsRepo.NewPostgresRepository(db, log)
+	threatService := threats.NewService(threatRepository, log)
+
 	redisClient := redisclient.New(cfg)
 	defer func() {
 		_ = redisClient.Close()
@@ -103,7 +108,7 @@ func main() {
 	exampleRepository := exampleRepo.NewInMemoryRepository(log)
 	service := example.NewService(exampleRepository, log)
 	limiter := middleware.RateLimitMiddleware(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	handler := rest.NewHandler(service, userService, authService, log, limiter, authMiddleware)
+	handler := rest.NewHandler(service, userService, threatService, authService, log, limiter, authMiddleware)
 	handler.RegisterRoutes(router)
 
 	server := &http.Server{
