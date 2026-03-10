@@ -6,6 +6,7 @@ import (
 
 	authdomain "admin-service/internal/domain/auth"
 	"admin-service/internal/domain/example"
+	"admin-service/internal/domain/threats"
 	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
 
@@ -16,6 +17,7 @@ import (
 type Handler struct {
 	exampleSvc     *example.Service
 	userSvc        *users.Service
+	threatSvc      *threats.Service
 	authSvc        *authdomain.Service
 	log            *zap.Logger
 	rateLimiter    gin.HandlerFunc
@@ -25,6 +27,7 @@ type Handler struct {
 func NewHandler(
 	exampleSvc *example.Service,
 	userSvc *users.Service,
+	threatSvc *threats.Service,
 	authSvc *authdomain.Service,
 	logger *zap.Logger,
 	rateLimiter gin.HandlerFunc,
@@ -33,6 +36,7 @@ func NewHandler(
 	return &Handler{
 		exampleSvc:     exampleSvc,
 		userSvc:        userSvc,
+		threatSvc:      threatSvc,
 		authSvc:        authSvc,
 		log:            logger.Named("admin-api"),
 		rateLimiter:    rateLimiter,

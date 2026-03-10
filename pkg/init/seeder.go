@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	adminRoleName  = "admin"
-	viewerRoleName = "viewer"
+	adminRoleName   = "admin"
+	viewerRoleName  = "viewer"
+	analystRoleName = "analyst"
 )
 
 const adminEmailKey = "ADMIN_EMAIL"
@@ -28,10 +29,19 @@ var adminPermissions = []string{
 	middleware.PermissionUsersRead,
 	middleware.PermissionUsersWrite,
 	middleware.PermissionUsersDelete,
+	middleware.PermissionThreatsRead,
+	middleware.PermissionThreatsWrite,
+	middleware.PermissionThreatsDelete,
 }
 
 var viewerPermissions = []string{
 	middleware.PermissionUsersRead,
+}
+
+var analystPermissions = []string{
+	middleware.PermissionThreatsRead,
+	middleware.PermissionThreatsWrite,
+	middleware.PermissionThreatsDelete,
 }
 
 // InitAdmin resolves the necessary secrets and seeds the admin/viewer roles + optional admin user.
@@ -88,6 +98,14 @@ func seedAdmin(ctx context.Context, db *gorm.DB, repo users.Repository, svc *use
 		return fmt.Errorf("ensuring viewer role: %w", err)
 	}
 	if err := linkRolePermissions(tx, viewerRole.ID, permIDs, viewerPermissions); err != nil {
+		return err
+	}
+
+	analystRole := &domain.Role{}
+	if err := tx.FirstOrCreate(analystRole, domain.Role{Name: analystRoleName}).Error; err != nil {
+		return fmt.Errorf("ensuring analyst role: %w", err)
+	}
+	if err := linkRolePermissions(tx, analystRole.ID, permIDs, analystPermissions); err != nil {
 		return err
 	}
 
