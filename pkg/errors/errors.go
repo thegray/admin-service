@@ -32,4 +32,7 @@ var (
 	ErrNotFound       = NewServiceError("not_found", "resource not found", http.StatusNotFound)
 	ErrInternal       = NewServiceError("internal_server_error", "internal server error", http.StatusInternalServerError)
 	ErrInvalidPayload = NewServiceError("invalid_payload", "invalid payload", http.StatusBadRequest)
+	ErrUnauthorized   = NewServiceError("unauthorized", "authentication failed", http.StatusUnauthorized)
+	ErrEmailExists    = NewServiceError("email_already_exists", "email already in use", http.StatusConflict)
+	ErrRoleNotFound   = NewServiceError("role_not_found", "role not found", http.StatusNotFound)
 )

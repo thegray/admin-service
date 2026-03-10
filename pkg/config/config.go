@@ -17,34 +17,71 @@ import (
 )
 
 const (
-	defaultConfigFile = "config.yaml"
-	defaultEnv        = "development"
+	defaultConfigFile          = "config.yaml"
+	defaultEnv                 = "development"
+	defaultDBHost              = "localhost"
+	defaultDBPort              = 5432
+	defaultDBUser              = "postgres"
+	defaultDBPassword          = "postgres"
+	defaultDBName              = "admin"
+	defaultDBSSLMode           = "disable"
+	defaultRedisAddr           = "localhost:6379"
+	defaultRedisDB             = 0
+	defaultAccessTokenSeconds  = 900    // 15 min
+	defaultRefreshTokenSeconds = 259200 // 3 days
+	defaultUserCacheSeconds    = 300    // 5 min
 )
 
 type Config struct {
-	Port            string
-	Environment     string
-	LogLevel        string
-	TokenSecret     string
-	RateLimitRPS    float64
-	RateLimitBurst  int
-	ReadTimeout     time.Duration
-	WriteTimeout    time.Duration
-	IdleTimeout     time.Duration
-	ShutdownTimeout time.Duration
-	UseSecretMgr    bool
+	Port             string
+	Environment      string
+	LogLevel         string
+	TokenSecret      string
+	RateLimitRPS     float64
+	RateLimitBurst   int
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
+	IdleTimeout      time.Duration
+	ShutdownTimeout  time.Duration
+	UseSecretMgr     bool
+	DatabaseHost     string
+	DatabasePort     int
+	DatabaseUser     string
+	DatabasePassword string
+	DatabaseName     string
+	DatabaseSSLMode  string
+	DatabaseURL      string
+	RedisAddr        string
+	RedisPassword    string
+	RedisDB          int
+	AccessTokenTTL   time.Duration
+	RefreshTokenTTL  time.Duration
+	UserCacheTTL     time.Duration
 }
 
 type fileConfig struct {
-	Port             string   `yaml:"port"`
-	Environment      string   `yaml:"environment"`
-	LogLevel         string   `yaml:"log_level"`
-	RateLimitRPS     *float64 `yaml:"rate_limit_rps"`
-	RateLimitBurst   *int     `yaml:"rate_limit_burst"`
-	ReadTimeoutSecs  *int     `yaml:"read_timeout_seconds"`
-	WriteTimeoutSecs *int     `yaml:"write_timeout_seconds"`
-	IdleTimeoutSecs  *int     `yaml:"idle_timeout_seconds"`
-	ShutdownSeconds  *int     `yaml:"shutdown_timeout_seconds"`
+	Port                   string   `yaml:"port"`
+	Environment            string   `yaml:"environment"`
+	LogLevel               string   `yaml:"log_level"`
+	RateLimitRPS           *float64 `yaml:"rate_limit_rps"`
+	RateLimitBurst         *int     `yaml:"rate_limit_burst"`
+	ReadTimeoutSecs        *int     `yaml:"read_timeout_seconds"`
+	WriteTimeoutSecs       *int     `yaml:"write_timeout_seconds"`
+	IdleTimeoutSecs        *int     `yaml:"idle_timeout_seconds"`
+	ShutdownSeconds        *int     `yaml:"shutdown_timeout_seconds"`
+	DatabaseHost           string   `yaml:"db_host"`
+	DatabasePort           *int     `yaml:"db_port"`
+	DatabaseUser           string   `yaml:"db_user"`
+	DatabasePassword       string   `yaml:"db_password"`
+	DatabaseName           string   `yaml:"db_name"`
+	DatabaseSSLMode        string   `yaml:"db_sslmode"`
+	DatabaseURL            string   `yaml:"database_url"`
+	RedisAddr              string   `yaml:"redis_addr"`
+	RedisPassword          string   `yaml:"redis_password"`
+	RedisDB                *int     `yaml:"redis_db"`
+	AccessTokenTTLSeconds  *int     `yaml:"access_token_ttl_seconds"`
+	RefreshTokenTTLSeconds *int     `yaml:"refresh_token_ttl_seconds"`
+	UserCacheTTLSeconds    *int     `yaml:"user_cache_ttl_seconds"`
 }
 
 type secretKey string
@@ -145,6 +182,21 @@ func Load(ctx context.Context) (Config, error) {
 		UseSecretMgr:    closer != nil,
 	}
 
+	cfg.RedisAddr = resolveConfigValString(os.Getenv("REDIS_ADDR"), fileCfg.RedisAddr, defaultRedisAddr)
+	cfg.RedisPassword = resolveConfigValString(os.Getenv("REDIS_PASSWORD"), fileCfg.RedisPassword, "")
+	cfg.RedisDB = resolveConfigValInt(os.Getenv("REDIS_DB"), fileCfg.RedisDB, defaultRedisDB)
+	cfg.AccessTokenTTL = resolveConfigDuration(os.Getenv("ACCESS_TOKEN_TTL_SECONDS"), fileCfg.AccessTokenTTLSeconds, defaultAccessTokenSeconds)
+	cfg.RefreshTokenTTL = resolveConfigDuration(os.Getenv("REFRESH_TOKEN_TTL_SECONDS"), fileCfg.RefreshTokenTTLSeconds, defaultRefreshTokenSeconds)
+	cfg.UserCacheTTL = resolveConfigDuration(os.Getenv("USER_CACHE_TTL_SECONDS"), fileCfg.UserCacheTTLSeconds, defaultUserCacheSeconds)
+
+	cfg.DatabaseHost = resolveConfigValString(os.Getenv("DB_HOST"), fileCfg.DatabaseHost, defaultDBHost)
+	cfg.DatabasePort = resolveConfigValInt(os.Getenv("DB_PORT"), fileCfg.DatabasePort, defaultDBPort)
+	cfg.DatabaseUser = resolveConfigValString(os.Getenv("DB_USER"), fileCfg.DatabaseUser, defaultDBUser)
+	cfg.DatabasePassword = resolveConfigValString(os.Getenv("DB_PASSWORD"), fileCfg.DatabasePassword, defaultDBPassword)
+	cfg.DatabaseName = resolveConfigValString(os.Getenv("DB_NAME"), fileCfg.DatabaseName, defaultDBName)
+	cfg.DatabaseSSLMode = resolveConfigValString(os.Getenv("DB_SSLMODE"), fileCfg.DatabaseSSLMode, defaultDBSSLMode)
+	cfg.DatabaseURL = resolveConfigValString(os.Getenv("DATABASE_URL"), fileCfg.DatabaseURL, "")
+
 	return cfg, nil
 }
 
@@ -169,6 +221,46 @@ func selectSecretProvider(ctx context.Context, env string) (secretProvider, func
 	default:
 		return envSecretProvider{}, nil, nil
 	}
+}
+
+// get runtime secret using the same provider logic used in Load
+func ResolveSecret(ctx context.Context, env string, key secretKey) (string, error) {
+	provider, closer, err := selectSecretProvider(ctx, env)
+	if err != nil {
+		return "", err
+	}
+	if closer != nil {
+		defer closer()
+	}
+
+	val, err := provider.Get(ctx, key)
+	if err != nil {
+		return "", err
+	}
+	if val == "" {
+		return "", fmt.Errorf("secret %s is empty", key)
+	}
+	return val, nil
+}
+
+// returns (value, false) when the secret is missing
+func ResolveOptionalSecret(ctx context.Context, env string, key secretKey) (string, bool, error) {
+	provider, closer, err := selectSecretProvider(ctx, env)
+	if err != nil {
+		return "", false, err
+	}
+	if closer != nil {
+		defer closer()
+	}
+
+	val, err := provider.Get(ctx, key)
+	if err != nil {
+		return "", false, err
+	}
+	if val == "" {
+		return "", false, nil
+	}
+	return val, true, nil
 }
 
 func loadFileConfig(path string) (fileConfig, error) {

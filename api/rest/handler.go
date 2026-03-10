@@ -4,7 +4,11 @@ import (
 	"net/http"
 	"time"
 
+	auditdomain "admin-service/internal/domain/audit"
+	authdomain "admin-service/internal/domain/auth"
 	"admin-service/internal/domain/example"
+	"admin-service/internal/domain/threats"
+	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
 
 	"github.com/gin-gonic/gin"
@@ -12,20 +16,35 @@ import (
 )
 
 type Handler struct {
-	exampleSvc  *example.Service
-	log         *zap.Logger
-	rateLimiter gin.HandlerFunc
+	exampleSvc     *example.Service
+	userSvc        *users.Service
+	threatSvc      *threats.Service
+	authSvc        *authdomain.Service
+	auditSvc       *auditdomain.Service
+	log            *zap.Logger
+	rateLimiter    gin.HandlerFunc
+	authMiddleware gin.HandlerFunc
 }
 
 func NewHandler(
 	exampleSvc *example.Service,
+	userSvc *users.Service,
+	threatSvc *threats.Service,
+	authSvc *authdomain.Service,
+	auditSvc *auditdomain.Service,
 	logger *zap.Logger,
 	rateLimiter gin.HandlerFunc,
+	authMiddleware gin.HandlerFunc,
 ) *Handler {
 	return &Handler{
-		exampleSvc:  exampleSvc,
-		log:         logger.Named("admin-api"),
-		rateLimiter: rateLimiter,
+		exampleSvc:     exampleSvc,
+		userSvc:        userSvc,
+		threatSvc:      threatSvc,
+		authSvc:        authSvc,
+		auditSvc:       auditSvc,
+		log:            logger.Named("admin-api"),
+		rateLimiter:    rateLimiter,
+		authMiddleware: authMiddleware,
 	}
 }
 

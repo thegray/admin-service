@@ -6,8 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"admin-service/internal/domain"
 	"admin-service/internal/domain/example"
+	domain "admin-service/internal/domain/model"
 
 	"go.uber.org/zap"
 )

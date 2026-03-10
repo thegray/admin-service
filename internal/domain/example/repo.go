@@ -3,7 +3,7 @@ package example
 import (
 	"context"
 
-	"admin-service/internal/domain"
+	domain "admin-service/internal/domain/model"
 )
 
 // interface definition for the repository
