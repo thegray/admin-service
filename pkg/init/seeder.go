@@ -109,6 +109,15 @@ func seedAdmin(ctx context.Context, db *gorm.DB, repo users.Repository, svc *use
 		return err
 	}
 
+	roles := map[string]*domain.Role{
+		adminRoleName:   adminRole,
+		viewerRoleName:  viewerRole,
+		analystRoleName: analystRole,
+	}
+	if err := seedRateLimitPolicies(ctx, tx, log, roles); err != nil {
+		return err
+	}
+
 	if email == "" {
 		if log != nil {
 			log.Info("admin email not configured; seeded roles/permissions only")
@@ -161,6 +170,62 @@ func linkRolePermissions(tx *gorm.DB, roleID uuid.UUID, permIDs map[string]uuid.
 		rp := &domain.RolePermission{RoleID: roleID, PermissionID: permID}
 		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(rp).Error; err != nil {
 			return fmt.Errorf("linking role to permission: %w", err)
+		}
+	}
+	return nil
+}
+
+func seedRateLimitPolicies(ctx context.Context, tx *gorm.DB, log *zap.Logger, roles map[string]*domain.Role) error {
+	if tx == nil {
+		return fmt.Errorf("db transaction is required")
+	}
+
+	policies := []domain.RateLimitPolicy{
+		{
+			Scope:             middleware.RateLimitScopeIP,
+			Resource:          middleware.ResourceIPGlobal,
+			RequestsPerMinute: 300,
+			Burst:             60,
+		},
+	}
+
+	addRolePolicy := func(name, resource string, rpm, burst int) {
+		role, ok := roles[name]
+		if !ok || role == nil {
+			if log != nil {
+				log.Warn("role missing while seeding rate limit policy", zap.String("role", name))
+			}
+			return
+		}
+		policies = append(policies, domain.RateLimitPolicy{
+			Scope:             middleware.RateLimitScopeRole,
+			RoleID:            &role.ID,
+			Resource:          resource,
+			RequestsPerMinute: rpm,
+			Burst:             burst,
+		})
+	}
+
+	addRolePolicy(adminRoleName, middleware.ResourceUsersCRUD, 120, 40)
+	addRolePolicy(adminRoleName, middleware.ResourceThreatsCRUD, 180, 60)
+
+	addRolePolicy(viewerRoleName, middleware.ResourceUsersCRUD, 60, 20)
+	addRolePolicy(viewerRoleName, middleware.ResourceThreatsCRUD, 30, 10)
+
+	addRolePolicy(analystRoleName, middleware.ResourceUsersCRUD, 30, 10)
+	addRolePolicy(analystRoleName, middleware.ResourceThreatsCRUD, 120, 40)
+
+	for i := range policies {
+		policy := policies[i]
+		if err := tx.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "scope"},
+				{Name: "role_id"},
+				{Name: "resource"},
+			},
+			DoUpdates: clause.AssignmentColumns([]string{"requests_per_minute", "burst"}),
+		}).Create(&policy).Error; err != nil {
+			return fmt.Errorf("seeding rate limit policy for %s/%s: %w", policy.Scope, policy.Resource, err)
 		}
 	}
 	return nil

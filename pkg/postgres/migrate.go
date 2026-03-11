@@ -13,6 +13,7 @@ func Migrate(db *gorm.DB) error {
 		&domain.Permission{},
 		&domain.RolePermission{},
 		&domain.UserRole{},
+		&domain.RateLimitPolicy{},
 		&domain.Threat{},
 	)
 }
