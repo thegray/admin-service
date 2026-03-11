@@ -17,7 +17,7 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 
 	authGroup := r.Group("/auth")
 	if h.rateLimiter != nil {
-		authGroup.Use(h.rateLimiter)
+		authGroup.Use(h.rateLimiter.Middleware(""))
 	}
 	authGroup.POST("/login", h.Login)
 	authGroup.POST("/refresh", h.Refresh)
@@ -37,7 +37,7 @@ func (h *Handler) initExampleRoutes(rg *gin.RouterGroup) {
 	example := rg.Group("/examples")
 
 	if h.rateLimiter != nil {
-		example.Use(h.rateLimiter)
+		example.Use(h.rateLimiter.Middleware(""))
 	}
 
 	example.POST("/", h.ExamplePost)
@@ -48,7 +48,7 @@ func (h *Handler) initUserRoutes(rg *gin.RouterGroup) {
 	usersGroup := rg.Group("/users")
 
 	if h.rateLimiter != nil {
-		usersGroup.Use(h.rateLimiter)
+		usersGroup.Use(h.rateLimiter.Middleware(middleware.ResourceUsersCRUD))
 	}
 
 	usersGroup.GET("/", middleware.RequirePermission(middleware.PermissionUsersRead), h.ListUsers)
@@ -62,7 +62,7 @@ func (h *Handler) initThreatRoutes(rg *gin.RouterGroup) {
 	threatsGroup := rg.Group("/threats")
 
 	if h.rateLimiter != nil {
-		threatsGroup.Use(h.rateLimiter)
+		threatsGroup.Use(h.rateLimiter.Middleware(middleware.ResourceThreatsCRUD))
 	}
 
 	threatsGroup.GET("/", middleware.RequirePermission(middleware.PermissionThreatsRead), h.ListThreats)

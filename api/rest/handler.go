@@ -9,6 +9,7 @@ import (
 	"admin-service/internal/domain/threats"
 	"admin-service/internal/domain/users"
 	svcerrors "admin-service/pkg/errors"
+	"admin-service/pkg/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -20,7 +21,7 @@ type Handler struct {
 	threatSvc      *threats.Service
 	authSvc        *authdomain.Service
 	log            *zap.Logger
-	rateLimiter    gin.HandlerFunc
+	rateLimiter    *middleware.APIRateLimiter
 	authMiddleware gin.HandlerFunc
 }
 
@@ -30,7 +31,7 @@ func NewHandler(
 	threatSvc *threats.Service,
 	authSvc *authdomain.Service,
 	logger *zap.Logger,
-	rateLimiter gin.HandlerFunc,
+	rateLimiter *middleware.APIRateLimiter,
 	authMiddleware gin.HandlerFunc,
 ) *Handler {
 	return &Handler{
