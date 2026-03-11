@@ -8,13 +8,13 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
-	"golang.org/x/time/rate"
 
 	"admin-service/api/rest"
 	authdomain "admin-service/internal/domain/auth"
 	authrepo "admin-service/internal/domain/auth/repository"
 	"admin-service/internal/domain/example"
 	exampleRepo "admin-service/internal/domain/example/repository"
+	ratelimitRepo "admin-service/internal/domain/rate_limit/repository"
 	"admin-service/internal/domain/threats"
 	threatsRepo "admin-service/internal/domain/threats/repository"
 	"admin-service/internal/domain/users"
@@ -107,8 +107,12 @@ func main() {
 
 	exampleRepository := exampleRepo.NewInMemoryRepository(log)
 	service := example.NewService(exampleRepository, log)
-	limiter := middleware.RateLimitMiddleware(rate.Limit(cfg.RateLimitRPS), cfg.RateLimitBurst)
-	handler := rest.NewHandler(service, userService, threatService, authService, log, limiter, authMiddleware)
+	rateLimitRepo := ratelimitRepo.NewPostgresRepository(db, log)
+	apiRateLimiter, err := middleware.NewAPIRateLimiter(ctx, redisClient, rateLimitRepo, log)
+	if err != nil {
+		log.Fatal("failed to initialize api rate limiter", zap.Error(err))
+	}
+	handler := rest.NewHandler(service, userService, threatService, authService, log, apiRateLimiter, authMiddleware)
 	handler.RegisterRoutes(router)
 
 	server := &http.Server{
